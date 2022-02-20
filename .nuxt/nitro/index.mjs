@@ -6,24 +6,30 @@ import { mkdirSync } from 'fs';
 import { parentPort, threadId } from 'worker_threads';
 import { provider, isWindows } from 'std-env';
 import { createApp, useBase } from 'h3';
-import { createFetch as createFetch$1 } from 'ohmyfetch';
+import { createFetch as createFetch$1, Headers } from 'ohmyfetch';
 import destr from 'destr';
 import { createCall, createFetch } from 'unenv/runtime/fetch/index';
 import { error404, errorDev } from '@nuxt/design';
 import { createRenderer } from 'vue-bundle-renderer';
 import devalue from '@nuxt/devalue';
 import defu from 'defu';
-import htmlTemplate from '/Users/vega/dev/nuxt/hello-tailwind-3/.nuxt/views/document.template.mjs';
+import { joinURL } from 'ufo';
+import htmlTemplate from 'file:///C:/Users/nabil/IdeaProjects/nuxt3-tailwind3-starter/.nuxt/views/document.template.mjs';
 import { renderToString as renderToString$2 } from 'vue/server-renderer';
 
-const _runtimeConfig = {public:{app:{basePath:"\u002F",assetsPath:"\u002F_nuxt\u002F",cdnURL:null}},private:{}};
+const _runtimeConfig = {public:{app:{baseURL:"\u002F",buildAssetsDir:"\u002F_nuxt\u002F",assetsPath:{},cdnURL:null}},private:{}};
 for (const type of ["private", "public"]) {
   for (const key in _runtimeConfig[type]) {
     _runtimeConfig[type][key] = destr(process.env[key] || _runtimeConfig[type][key]);
   }
 }
+const appConfig = _runtimeConfig.public.app;
+appConfig.baseURL = process.env.NUXT_APP_BASE_URL || appConfig.baseURL;
+appConfig.cdnURL = process.env.NUXT_APP_CDN_URL || appConfig.cdnURL;
+appConfig.buildAssetsDir = process.env.NUXT_APP_BUILD_ASSETS_DIR || appConfig.buildAssetsDir;
 const privateConfig = deepFreeze(defu(_runtimeConfig.private, _runtimeConfig.public));
 const publicConfig = deepFreeze(_runtimeConfig.public);
+const config = privateConfig;
 function deepFreeze(object) {
   const propNames = Object.getOwnPropertyNames(object);
   for (const name of propNames) {
@@ -33,6 +39,17 @@ function deepFreeze(object) {
     }
   }
   return Object.freeze(object);
+}
+
+function baseURL() {
+  return config.app.baseURL;
+}
+function buildAssetsURL(...path) {
+  return joinURL(publicAssetsURL(), config.app.buildAssetsDir, ...path);
+}
+function publicAssetsURL(...path) {
+  const publicBase = config.app.cdnURL || config.app.baseURL;
+  return path.length ? joinURL(publicBase, ...path) : publicBase;
 }
 
 const globalTiming = globalThis.__timing__ || {
@@ -89,9 +106,16 @@ function handleError(error, req, res) {
   res.end(html);
 }
 
+const _7994e5 = () => Promise.resolve().then(function () { return tracker$1; });
+
 const middleware = [
-    
-  ];
+  {
+    route: "/api/tracker",
+    handle: _7994e5,
+    lazy: true,
+    promisify: true
+  }
+];
 
 const app = createApp({
   debug: destr(true),
@@ -101,10 +125,10 @@ app.use(timingMiddleware);
 app.use(middleware);
 app.use(() => Promise.resolve().then(function () { return render; }).then((e) => e.renderMiddleware), { lazy: true });
 app.stack;
-const handle = useBase("/", app);
+const handle = useBase(baseURL(), app);
 const localCall = createCall(handle);
 const localFetch = createFetch(localCall, globalThis.fetch);
-const $fetch = createFetch$1({ fetch: localFetch });
+const $fetch = createFetch$1({ fetch: localFetch, Headers });
 globalThis.$fetch = $fetch;
 
 const server = new Server(handle);
@@ -130,11 +154,17 @@ server.listen(listenAddress, () => {
   });
 });
 
-const STATIC_ASSETS_BASE = "/Users/vega/dev/nuxt/hello-tailwind-3/dist" + "/" + "1640804012";
+const tracker = (req, res) => "Hello Wsorld";
+
+const tracker$1 = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  'default': tracker
+});
+
+const STATIC_ASSETS_BASE = "/_nuxt/C:/Users/nabil/IdeaProjects/nuxt3-tailwind3-starter/dist" + "/" + "1645325361";
 const PAYLOAD_JS = "/payload.js";
-const getClientManifest = cachedImport(() => import('/Users/vega/dev/nuxt/hello-tailwind-3/.nuxt/dist/server/client.manifest.mjs'));
-const getSSRApp = cachedImport(() => import('/Users/vega/dev/nuxt/hello-tailwind-3/.nuxt/dist/server/server.mjs'));
-const publicPath = publicConfig.app && publicConfig.app.assetsPath || "/_nuxt/" || "/_nuxt";
+const getClientManifest = cachedImport(() => import('file:///C:/Users/nabil/IdeaProjects/nuxt3-tailwind3-starter/.nuxt/dist/server/client.manifest.mjs'));
+const getSSRApp = cachedImport(() => import('file:///C:/Users/nabil/IdeaProjects/nuxt3-tailwind3-starter/.nuxt/dist/server/server.mjs'));
 const getSSRRenderer = cachedResult(async () => {
   const clientManifest = await getClientManifest();
   if (!clientManifest) {
@@ -145,7 +175,7 @@ const getSSRRenderer = cachedResult(async () => {
     throw new Error("Server bundle is not available");
   }
   const { renderToString: renderToString2 } = await Promise.resolve().then(function () { return vue3; });
-  return createRenderer(createSSRApp, { clientManifest, renderToString: renderToString2, publicPath }).renderToString;
+  return createRenderer(createSSRApp, { clientManifest, renderToString: renderToString2, publicPath: buildAssetsURL() }).renderToString;
 });
 const getSPARenderer = cachedResult(async () => {
   const clientManifest = await getClientManifest();
@@ -155,16 +185,17 @@ const getSPARenderer = cachedResult(async () => {
       config: publicConfig
     };
     let entryFiles = Object.values(clientManifest).filter((fileValue) => fileValue.isEntry);
+    entryFiles.push(...entryFiles.flatMap((e) => e.dynamicImports || []).map((i) => clientManifest[i]).filter(Boolean));
     if ("all" in clientManifest && "initial" in clientManifest) {
       entryFiles = clientManifest.initial.map((file) => ({ file }));
     }
     return {
       html: '<div id="__nuxt"></div>',
       renderResourceHints: () => "",
-      renderStyles: () => entryFiles.flatMap(({ css }) => css).filter((css) => css != null).map((file) => `<link rel="stylesheet" href="${publicPath}${file}">`).join(""),
+      renderStyles: () => entryFiles.flatMap(({ css }) => css).filter((css) => css != null).map((file) => `<link rel="stylesheet" href="${buildAssetsURL(file)}">`).join(""),
       renderScripts: () => entryFiles.map(({ file }) => {
         const isMJS = !file.endsWith(".js");
-        return `<script ${isMJS ? 'type="module"' : ""} src="${publicPath}${file}"><\/script>`;
+        return `<script ${isMJS ? 'type="module"' : ""} src="${buildAssetsURL(file)}"><\/script>`;
       }).join("")
     };
   };
@@ -178,7 +209,7 @@ async function renderMiddleware(req, res) {
   let isPayloadReq = false;
   if (url.startsWith(STATIC_ASSETS_BASE) && url.endsWith(PAYLOAD_JS)) {
     isPayloadReq = true;
-    url = url.substr(STATIC_ASSETS_BASE.length, url.length - STATIC_ASSETS_BASE.length - PAYLOAD_JS.length) || "/";
+    url = url.slice(STATIC_ASSETS_BASE.length, url.length - PAYLOAD_JS.length) || "/";
   }
   const ssrContext = {
     url,
